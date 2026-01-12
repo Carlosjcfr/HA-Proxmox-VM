@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # Copyright (c) 2021-2024 tteck
 # Author: tteck (tteckster)
@@ -345,20 +345,28 @@ pve_check
 ssh_check
 start_script
 
+# Validating Storage
 msg_info "Validating Storage"
+declare -a STORAGE_MENU=()
+MSG_MAX_LENGTH=0
 while read -r line; do
   TAG=$(echo $line | awk '{print $1}')
   TYPE=$(echo $line | awk '{printf "%-10s", $2}')
   FREE=$(echo $line | numfmt --field 4-6 --from-unit=K --to=iec --format %.2f | awk '{printf( "%9sB", $6)}')
   ITEM="  Type: $TYPE Free: $FREE "
   OFFSET=2
-  if [[ $((${#ITEM} + $OFFSET)) -gt ${MSG_MAX_LENGTH:-} ]]; then
+  if [[ $((${#ITEM} + $OFFSET)) -gt ${MSG_MAX_LENGTH} ]]; then
     MSG_MAX_LENGTH=$((${#ITEM} + $OFFSET))
   fi
   STORAGE_MENU+=("$TAG" "$ITEM" "OFF")
+  # STRICT LIMIT: 15 storage locations max to prevent whiptail argument explosion
+  if [ "${#STORAGE_MENU[@]}" -gt 45 ]; then
+       msg_info "Storage list truncated to first 15 items for safety."
+       break
+  fi
 done < <(pvesm status -content images | awk 'NR>1')
-VALID=$(pvesm status -content images | awk 'NR>1')
-if [ -z "$VALID" ]; then
+
+if [ ${#STORAGE_MENU[@]} -eq 0 ]; then
   msg_error "Unable to detect a valid storage location."
   exit
 elif [ $((${#STORAGE_MENU[@]} / 3)) -eq 1 ]; then
