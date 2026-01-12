@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Copyright (c) 2021-2024 tteck
 # Author: tteck (tteckster)
@@ -8,17 +8,27 @@
 function header_info {
   clear
   cat <<"EOF"
-   ______           _          ____  _____
+   ______           _          ____  _____ 
   |___  /          (_)        / __ \/ ____|
-     / / ___  _ __  _ _ __   | |  | | (___
-    / / / _ \| '__|| | '_ \  | |  | |\___ \
+     / / ___  _ __  _ _ __   | |  | | (___  
+    / / / _ \| '__|| | '_ \  | |  | |\___ \ 
    / /_| (_) | |   | | | | | | |__| |____) |
-  /_____\___/|_|   |_|_| |_|  \____/|_____/
-
+  /_____\___/|_|   |_|_| |_|  \____/|_____/ 
+                                            
 EOF
 }
+
 header_info
 echo -e "\n Loading..."
+
+# Check for latest Zorin OS version
+msg_info "Checking for latest Zorin OS version"
+LATEST_VERSION=$(curl -s https://mirrors.dotsrc.org/zorinos/ | grep -oP '\d+/' | sort -rn | head -n 1 | tr -d '/')
+if [ -z "$LATEST_VERSION" ]; then
+  LATEST_VERSION="18" # Fallback to 18 if scraping fails
+fi
+msg_ok "Latest stable version is ${LATEST_VERSION}"
+
 GEN_MAC=02:$(openssl rand -hex 5 | awk '{print toupper($0)}' | sed 's/\(..\)/\1:/g; s/.$//')
 NEXTID=$(pvesh get /cluster/nextid)
 
@@ -38,6 +48,7 @@ THIN="discard=on,ssd=1,"
 set -e
 trap 'error_handler $LINENO "$BASH_COMMAND"' ERR
 trap cleanup EXIT
+
 function error_handler() {
   local exit_code="$?"
   local line_number="$1"
@@ -61,7 +72,8 @@ function cleanup() {
 
 TEMP_DIR=$(mktemp -d)
 pushd $TEMP_DIR >/dev/null
-if whiptail --backtitle "Proxmox VE Helper Scripts" --title "Zorin OS 17 VM" --yesno "This will create a New Zorin OS 17 VM. Proceed?" 10 58; then
+
+if whiptail --backtitle "Proxmox VE Helper Scripts" --title "Zorin OS ${LATEST_VERSION} VM" --yesno "This will create a New Zorin OS ${LATEST_VERSION} VM. Proceed?" 10 58; then
   :
 else
   header_info && echo -e "⚠ User exited script \n" && exit
@@ -138,8 +150,8 @@ function default_settings() {
   HN="zorin-os"
   CPU_TYPE=""
   CORE_COUNT="2"
-  RAM_SIZE="2048"
-  DISK_SIZE="32"
+  RAM_SIZE="4096" # Zorin is heavier than Ubuntu cloud
+  DISK_SIZE="40"   # Zorin needs more space for desktop
   BRG="vmbr0"
   MAC="$GEN_MAC"
   VLAN=""
@@ -156,7 +168,7 @@ function default_settings() {
   echo -e "${DGN}Using MAC Address: ${BGN}${MAC}${CL}"
   echo -e "${DGN}Using VLAN: ${BGN}Default${CL}"
   echo -e "${DGN}Using Interface MTU Size: ${BGN}Default${CL}"
-  echo -e "${BL}Creating a Zorin OS 17 VM using the above default settings${CL}"
+  echo -e "${BL}Creating a Zorin OS ${LATEST_VERSION} VM using the above default settings${CL}"
 }
 
 function advanced_settings() {
@@ -247,9 +259,9 @@ function advanced_settings() {
     exit-script
   fi
 
-  if RAM_SIZE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --inputbox "Allocate RAM in MiB" 8 58 2048 --title "RAM" --cancel-button Exit-Script 3>&1 1>&2 2>&3); then
+  if RAM_SIZE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --inputbox "Allocate RAM in MiB" 8 58 4096 --title "RAM" --cancel-button Exit-Script 3>&1 1>&2 2>&3); then
     if [ -z $RAM_SIZE ]; then
-      RAM_SIZE="2048"
+      RAM_SIZE="4096"
       echo -e "${DGN}Allocated RAM: ${BGN}$RAM_SIZE${CL}"
     else
       echo -e "${DGN}Allocated RAM: ${BGN}$RAM_SIZE${CL}"
@@ -258,9 +270,9 @@ function advanced_settings() {
     exit-script
   fi
 
-  if DISK_SIZE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --inputbox "Allocate Disk Size in GiB" 8 58 32 --title "DISK SIZE" --cancel-button Exit-Script 3>&1 1>&2 2>&3); then
+  if DISK_SIZE=$(whiptail --backtitle "Proxmox VE Helper Scripts" --inputbox "Allocate Disk Size in GiB" 8 58 40 --title "DISK SIZE" --cancel-button Exit-Script 3>&1 1>&2 2>&3); then
     if [ -z $DISK_SIZE ]; then
-      DISK_SIZE="32"
+      DISK_SIZE="40"
       echo -e "${DGN}Allocated Disk Size: ${BGN}${DISK_SIZE}G${CL}"
     else
       echo -e "${DGN}Allocated Disk Size: ${BGN}${DISK_SIZE}G${CL}"
@@ -318,8 +330,8 @@ function advanced_settings() {
     exit-script
   fi
 
-  if (whiptail --backtitle "Proxmox VE Helper Scripts" --title "ADVANCED SETTINGS COMPLETE" --yesno "Ready to create a Zorin OS 17 VM?" --no-button Do-Over 10 58); then
-    echo -e "${RD}Creating a Zorin OS 17 VM using the above advanced settings${CL}"
+  if (whiptail --backtitle "Proxmox VE Helper Scripts" --title "ADVANCED SETTINGS COMPLETE" --yesno "Ready to create a Zorin OS ${LATEST_VERSION} VM?" --no-button Do-Over 10 58); then
+    echo -e "${RD}Creating a Zorin OS ${LATEST_VERSION} VM using the above advanced settings${CL}"
   else
     header_info
     echo -e "${RD}Using Advanced Settings${CL}"
@@ -359,11 +371,6 @@ while read -r line; do
     MSG_MAX_LENGTH=$((${#ITEM} + $OFFSET))
   fi
   STORAGE_MENU+=("$TAG" "$ITEM" "OFF")
-  # STRICT LIMIT: 15 storage locations max to prevent whiptail argument explosion
-  if [ "${#STORAGE_MENU[@]}" -gt 45 ]; then
-       msg_info "Storage list truncated to first 15 items for safety."
-       break
-  fi
 done < <(pvesm status -content images | awk 'NR>1')
 
 if [ ${#STORAGE_MENU[@]} -eq 0 ]; then
@@ -394,10 +401,11 @@ btrfs)
 esac
 DISK0=vm-${VMID}-disk-0${DISK_EXT:-}
 
-msg_info "Downloading Zorin OS 17.2 Core ISO"
-# Using a stable mirror (dotsrc) instead of Sourceforge to avoid download errors
-URL="https://mirrors.dotsrc.org/zorinos/17/Zorin-OS-17.2-Core-64-bit.iso"
+msg_info "Retrieving the URL for Zorin OS ${LATEST_VERSION} Core ISO"
+ISO_FILE=$(curl -s https://mirrors.dotsrc.org/zorinos/${LATEST_VERSION}/ | grep -oP 'Zorin-OS-'${LATEST_VERSION}'-Core-64-bit(-r\d+)?\.iso' | sort -V | tail -n 1)
+URL="https://mirrors.dotsrc.org/zorinos/${LATEST_VERSION}/${ISO_FILE}"
 sleep 2
+msg_ok "${CL}${BL}${URL}${CL}"
 
 # Check for ISO storage
 ISO_STORAGE="local"
@@ -408,43 +416,39 @@ if [ ! -d "$ISO_PATH" ]; then
     mkdir -p $ISO_PATH
 fi
 
-FILE="Zorin-OS-17.2-Core-64-bit.iso"
-FULL_PATH="${ISO_PATH}/${FILE}"
+FULL_PATH="${ISO_PATH}/${ISO_FILE}"
 
 if [ ! -f "$FULL_PATH" ]; then
-    msg_info "Downloading ${FILE} to ${ISO_PATH}"
-    # Added --tries and --timeout for better reliability
+    msg_info "Downloading ${ISO_FILE} to ${ISO_PATH}"
     wget -q --show-progress --tries=3 --timeout=20 "$URL" -O "$FULL_PATH" || {
       msg_error "Download failed. Please check your internet connection or the mirror status."
       exit 1
     }
     echo -en "\e[1A\e[0K"
-    msg_ok "Downloaded ${CL}${BL}${FILE}${CL}"
+    msg_ok "Downloaded ${CL}${BL}${ISO_FILE}${CL}"
 else
-    msg_ok "${FILE} already exists"
+    msg_ok "${ISO_FILE} already exists"
 fi
 
-msg_info "Creating a Zorin OS 17 VM"
+msg_info "Creating a Zorin OS ${LATEST_VERSION} VM"
 # 1. Create the base VM structure
 qm create $VMID -agent 1${MACHINE} -tablet 0 -localtime 1 -bios ovmf${CPU_TYPE} -cores $CORE_COUNT -memory $RAM_SIZE \
   -name $HN -tags proxmox-helper-scripts -net0 virtio,bridge=$BRG,macaddr=$MAC$VLAN$MTU -onboot 1 -ostype l26 -scsihw virtio-scsi-pci >/dev/null
 
 # 2. Allocate and set the EFI disk (Required for UEFI/OVMF)
-# We use disk-0 for EFI and disk-1 for OS to be consistent
 pvesm alloc $STORAGE $VMID $DISK0 4M > /dev/null 2>&1
 qm set $VMID -efidisk0 ${STORAGE}:${DISK0}${FORMAT} >/dev/null
 
 # 3. Create the main disk and attach the ISO
-# Removing trailing comma from THIN for cleaner command
 CLEAN_THIN=${THIN%?}
 qm set $VMID \
   -scsi0 "${STORAGE}:${DISK_SIZE},${DISK_CACHE}${CLEAN_THIN}" \
-  -ide2 "${ISO_STORAGE}:iso/${FILE},media=cdrom" \
+  -ide2 "${ISO_STORAGE}:iso/${ISO_FILE},media=cdrom" \
   -boot "order=ide2;scsi0" \
   -description "<div align='center'><img src='https://zorin.com/images/zorin-logo.svg' width='100'/>
-  # Zorin OS 17 VM
+  # Zorin OS ${LATEST_VERSION} VM
   </div>" >/dev/null
 
-msg_ok "Created a Zorin OS 17 VM ${CL}${BL}(${HN})"
+msg_ok "Created a Zorin OS ${LATEST_VERSION} VM ${CL}${BL}(${HN})"
 msg_ok "Completed Successfully!\n"
 echo -e "Please start the VM to proceed with Zorin OS installation.\n"
