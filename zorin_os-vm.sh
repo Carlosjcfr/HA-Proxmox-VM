@@ -23,9 +23,12 @@ echo -e "\n Loading..."
 
 # Check for latest Zorin OS version
 msg_info "Checking for latest Zorin OS version"
-LATEST_VERSION=$(curl -s https://mirrors.dotsrc.org/zorinos/ | grep -oP '\d+/' | sort -rn | head -n 1 | tr -d '/')
-if [ -z "$LATEST_VERSION" ]; then
-  LATEST_VERSION="18" # Fallback to 18 if scraping fails
+# Improved regex to look for directory links with 2 digits (e.g., 17/, 18/)
+LATEST_VERSION=$(curl -s https://mirrors.dotsrc.org/zorinos/ | grep -oP 'href="\K\d{2}(?=/")' | sort -rn | head -n 1)
+
+# Validation and Fallback
+if [[ ! "$LATEST_VERSION" =~ ^[0-9]+$ ]] || [ "$LATEST_VERSION" -gt 30 ]; then
+  LATEST_VERSION="18"
 fi
 msg_ok "Latest stable version is ${LATEST_VERSION}"
 
@@ -402,8 +405,17 @@ esac
 DISK0=vm-${VMID}-disk-0${DISK_EXT:-}
 
 msg_info "Retrieving the URL for Zorin OS ${LATEST_VERSION} Core ISO"
+# Improved ISO detection with validation
 ISO_FILE=$(curl -s https://mirrors.dotsrc.org/zorinos/${LATEST_VERSION}/ | grep -oP 'Zorin-OS-'${LATEST_VERSION}'-Core-64-bit(-r\d+)?\.iso' | sort -V | tail -n 1)
-URL="https://mirrors.dotsrc.org/zorinos/${LATEST_VERSION}/${ISO_FILE}"
+
+if [ -z "$ISO_FILE" ]; then
+  msg_error "Could not detect ISO file for Zorin OS ${LATEST_VERSION}. Falling back to default."
+  LATEST_VERSION="18"
+  ISO_FILE="Zorin-OS-18-Core-64-bit.iso"
+  URL="https://mirrors.dotsrc.org/zorinos/18/${ISO_FILE}"
+else
+  URL="https://mirrors.dotsrc.org/zorinos/${LATEST_VERSION}/${ISO_FILE}"
+fi
 sleep 2
 msg_ok "${CL}${BL}${URL}${CL}"
 
