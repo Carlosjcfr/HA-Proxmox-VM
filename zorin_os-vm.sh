@@ -438,9 +438,9 @@ qm set $VMID -efidisk0 ${STORAGE}:${DISK0}${FORMAT} >/dev/null
 # Removing trailing comma from THIN for cleaner command
 CLEAN_THIN=${THIN%?}
 qm set $VMID \
-  -scsi0 ${STORAGE}:${DISK_SIZE},${DISK_CACHE}${CLEAN_THIN} \
-  -ide2 ${ISO_STORAGE}:iso/${FILE},media=cdrom \
-  -boot order=ide2;scsi0 \
+  -scsi0 "${STORAGE}:${DISK_SIZE},${DISK_CACHE}${CLEAN_THIN}" \
+  -ide2 "${ISO_STORAGE}:iso/${FILE},media=cdrom" \
+  -boot "order=ide2;scsi0" \
   -description "<div align='center'><img src='https://zorin.com/images/zorin-logo.svg' width='100'/>
   # Zorin OS 17 VM
   </div>" >/dev/null
