@@ -382,6 +382,18 @@ fi
 msg_ok "Using ${CL}${BL}$STORAGE${CL} ${GN}for Storage Location."
 msg_ok "Virtual Machine ID is ${CL}${BL}$VMID${CL}."
 
+STORAGE_TYPE=$(pvesm status -storage $STORAGE | awk 'NR>1 {print $2}')
+case $STORAGE_TYPE in
+nfs | dir)
+  DISK_EXT=".qcow2"
+  ;;
+btrfs)
+  DISK_EXT=".raw"
+  FORMAT=",efitype=4m"
+  ;;
+esac
+DISK0=vm-${VMID}-disk-0${DISK_EXT:-}
+
 msg_info "Downloading Zorin OS 17.2 Core ISO"
 # Using a stable mirror (dotsrc) instead of Sourceforge to avoid download errors
 URL="https://mirrors.dotsrc.org/zorinos/17/Zorin-OS-17.2-Core-64-bit.iso"
@@ -413,11 +425,22 @@ else
 fi
 
 msg_info "Creating a Zorin OS 17 VM"
+# 1. Create the base VM structure
 qm create $VMID -agent 1${MACHINE} -tablet 0 -localtime 1 -bios ovmf${CPU_TYPE} -cores $CORE_COUNT -memory $RAM_SIZE \
-  -name $HN -tags proxmox-helper-scripts -net0 virtio,bridge=$BRG,macaddr=$MAC$VLAN$MTU -onboot 1 -ostype l26 -scsihw virtio-scsi-pci \
-  -scsi0 ${STORAGE}:${DISK_SIZE}${DISK_CACHE}${THIN} \
+  -name $HN -tags proxmox-helper-scripts -net0 virtio,bridge=$BRG,macaddr=$MAC$VLAN$MTU -onboot 1 -ostype l26 -scsihw virtio-scsi-pci >/dev/null
+
+# 2. Allocate and set the EFI disk (Required for UEFI/OVMF)
+# We use disk-0 for EFI and disk-1 for OS to be consistent
+pvesm alloc $STORAGE $VMID $DISK0 4M > /dev/null 2>&1
+qm set $VMID -efidisk0 ${STORAGE}:${DISK0}${FORMAT} >/dev/null
+
+# 3. Create the main disk and attach the ISO
+# Removing trailing comma from THIN for cleaner command
+CLEAN_THIN=${THIN%?}
+qm set $VMID \
+  -scsi0 ${STORAGE}:${DISK_SIZE},${DISK_CACHE}${CLEAN_THIN} \
   -ide2 ${ISO_STORAGE}:iso/${FILE},media=cdrom \
-  -boot order=ide2,scsi0 \
+  -boot order=ide2;scsi0 \
   -description "<div align='center'><img src='https://zorin.com/images/zorin-logo.svg' width='100'/>
   # Zorin OS 17 VM
   </div>" >/dev/null
