@@ -383,10 +383,8 @@ msg_ok "Using ${CL}${BL}$STORAGE${CL} ${GN}for Storage Location."
 msg_ok "Virtual Machine ID is ${CL}${BL}$VMID${CL}."
 
 msg_info "Downloading Zorin OS 17.2 Core ISO"
-# URL for Zorin OS 17.2 Core from a reliable mirror (Sourceforge or similar stable link needed)
-# Using Sourceforge to avoid direct link expiry issues if possible, although direct links are better if stable.
-# This link is checking Sourceforge for the latest 17.2 Core
-URL="https://sourceforge.net/projects/zorin-os/files/17/Zorin-OS-17.2-Core-64-bit.iso/download"
+# Using a stable mirror (dotsrc) instead of Sourceforge to avoid download errors
+URL="https://mirrors.dotsrc.org/zorinos/17/Zorin-OS-17.2-Core-64-bit.iso"
 sleep 2
 
 # Check for ISO storage
@@ -403,7 +401,11 @@ FULL_PATH="${ISO_PATH}/${FILE}"
 
 if [ ! -f "$FULL_PATH" ]; then
     msg_info "Downloading ${FILE} to ${ISO_PATH}"
-    wget -q --show-progress "$URL" -O "$FULL_PATH"
+    # Added --tries and --timeout for better reliability
+    wget -q --show-progress --tries=3 --timeout=20 "$URL" -O "$FULL_PATH" || {
+      msg_error "Download failed. Please check your internet connection or the mirror status."
+      exit 1
+    }
     echo -en "\e[1A\e[0K"
     msg_ok "Downloaded ${CL}${BL}${FILE}${CL}"
 else
