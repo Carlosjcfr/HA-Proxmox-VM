@@ -2,6 +2,8 @@
 
 Esta guía explica cómo desplegar una Máquina Virtual (VM) o Contenedor (LXC) en Proxmox VE ejecutando un script de instalación directamente desde la consola (Shell) utilizando su URL `raw`.
 
+Todos los scripts son modificaciones de los script de tteck (@tteckster), debido a que algunso de ellos instalaban versiones antiguas o daban problemas con el chekeo de la version de proxmox instalada
+
 ## 📋 Prerrequisitos
 
 * Acceso a la interfaz web de **Proxmox VE**.
